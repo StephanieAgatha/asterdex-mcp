@@ -1,5 +1,9 @@
 # asterdex-mcp
 
+[![PyPI version](https://img.shields.io/pypi/v/asterdex-mcp)](https://pypi.org/project/asterdex-mcp/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Model Context Protocol (MCP) server for [Aster DEX](https://asterdex.com) — a Binance-compatible perpetual futures DEX on-chain.
 
 ## Features
@@ -7,12 +11,17 @@ Model Context Protocol (MCP) server for [Aster DEX](https://asterdex.com) — a 
 - **Account** — balance, positions, open orders
 - **Trading** — place/cancel/modify orders (market, limit, stop, TP/SL)
 - **Market Data** — klines/OHLCV, 24h ticker, orderbook, exchange info
+- **Analysis** — RSI, MACD, Stochastic, EMA, Bollinger Bands, signals
 - **Auth** — EIP-712 typed data signing (delegation model)
 
 ## Quick Start
 
 ```bash
+# Using uvx (recommended — no install needed)
 uvx asterdex-mcp
+
+# Or install globally
+pip install asterdex-mcp
 ```
 
 ## Wallet Setup Guide
