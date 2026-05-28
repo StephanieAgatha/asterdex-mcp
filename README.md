@@ -65,9 +65,86 @@ ASTER_PRIVATE_KEY=0x...  # Your agent wallet private key (from Step 1)
 
 > ⚠️ **Never share your private key.** The agent wallet should have NO funds — it only signs messages.
 
-### Step 4: Configure MCP
+### Step 4: Install & Configure
 
-Add to your MCP client config (e.g. Claude Desktop, Cursor, Hermes Agent):
+#### Claude Code
+
+```bash
+# Add the MCP server
+claude mcp add asterdex -- uvx asterdex-mcp \
+  -e ASTER_PRIVATE_KEY=0xYOUR_AGENT_PRIVATE_KEY \
+  -e ASTER_WALLET=0xYOUR_MAIN_WALLET_ADDRESS \
+  -e ASTER_SIGNER=0xYOUR_AGENT_WALLET_ADDRESS
+```
+
+Verify with:
+```bash
+claude mcp list
+```
+
+#### OpenClaw
+
+Add to your OpenClaw MCP config (`~/.openclaw/mcp.json` or project-level):
+
+```json
+{
+  "mcpServers": {
+    "asterdex": {
+      "command": "uvx",
+      "args": ["asterdex-mcp"],
+      "env": {
+        "ASTER_PRIVATE_KEY": "0xYOUR_AGENT_PRIVATE_KEY",
+        "ASTER_WALLET": "0xYOUR_MAIN_WALLET_ADDRESS",
+        "ASTER_SIGNER": "0xYOUR_AGENT_WALLET_ADDRESS"
+      }
+    }
+  }
+}
+```
+
+#### Hermes Agent
+
+Add to `~/.hermes/config.yaml` under `mcp_servers`:
+
+```yaml
+mcp_servers:
+  asterdex:
+    command: uvx
+    args:
+    - asterdex-mcp
+    env:
+      ASTER_PRIVATE_KEY: '0xYOUR_AGENT_PRIVATE_KEY'
+      ASTER_WALLET: '0xYOUR_MAIN_WALLET_ADDRESS'
+      ASTER_SIGNER: '0xYOUR_AGENT_WALLET_ADDRESS'
+    enabled: true
+    timeout: 30
+```
+
+Then restart: `hermes gateway restart`
+
+#### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "asterdex": {
+      "command": "uvx",
+      "args": ["asterdex-mcp"],
+      "env": {
+        "ASTER_PRIVATE_KEY": "0xYOUR_AGENT_PRIVATE_KEY",
+        "ASTER_WALLET": "0xYOUR_MAIN_WALLET_ADDRESS",
+        "ASTER_SIGNER": "0xYOUR_AGENT_WALLET_ADDRESS"
+      }
+    }
+  }
+}
+```
+
+#### Cursor
+
+Add to `.cursor/mcp.json` in your project root (or `~/.cursor/mcp.json` globally):
 
 ```json
 {
