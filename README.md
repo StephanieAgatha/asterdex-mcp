@@ -1,6 +1,6 @@
 # asterdex-mcp
 
-Model Context Protocol (MCP) server for [Aster DEX](https://asterdex.com) — a Binance-compatible perpetual futures DEX.
+Model Context Protocol (MCP) server for [Aster DEX](https://asterdex.com) — a Binance-compatible perpetual futures DEX on-chain.
 
 ## Features
 
@@ -15,15 +15,59 @@ Model Context Protocol (MCP) server for [Aster DEX](https://asterdex.com) — a 
 uvx asterdex-mcp
 ```
 
-### Environment Variables
+## Wallet Setup Guide
 
-| Variable | Description |
-|---|---|
-| `ASTER_PRIVATE_KEY` | Agent wallet private key |
-| `ASTER_WALLET` | Main wallet address |
-| `ASTER_SIGNER` | Agent wallet address |
+Aster DEX uses a **delegation model** with two wallets:
 
-## MCP Configuration
+| Wallet | What it is | Purpose |
+|---|---|---|
+| **Main Wallet** | Your primary wallet (e.g. MetaMask) | Holds funds, manages API permissions |
+| **Agent Wallet** | A separate wallet for automation | Signs trades on your behalf |
+
+### Step 1: Create an Agent Wallet
+
+Generate a new Ethereum-compatible wallet for the agent. This wallet will sign transactions but **never holds funds**.
+
+```bash
+# Using ethers.js / viem / any wallet generator
+# Or use this quick Python snippet:
+python3 -c "
+from eth_account import Account
+acct = Account.create()
+print(f'Address: {acct.address}')
+print(f'Private Key: {acct.key.hex()}')
+"
+```
+
+Save the output — you'll need both the **address** and **private key**.
+
+### Step 2: Set Up API Access on Aster
+
+1. Go to [Aster DEX](https://asterdex.com) and connect your **main wallet**
+2. Navigate to **Settings** → **API Management**
+3. Click **Create API Key**
+4. Enter your **agent wallet address** when prompted
+5. **Important:** Enable the following permissions:
+   - ✅ Perps Trading (required for placing orders)
+   - ✅ Enable IP restriction (recommended for security)
+6. Whitelist your server/agent IP address
+7. Confirm and sign the transaction from your main wallet
+
+### Step 3: Get Your Credentials
+
+You need three values:
+
+```
+ASTER_WALLET=0x...    # Your main wallet address (the one on Aster)
+ASTER_SIGNER=0x...    # Your agent wallet address (from Step 1)
+ASTER_PRIVATE_KEY=0x...  # Your agent wallet private key (from Step 1)
+```
+
+> ⚠️ **Never share your private key.** The agent wallet should have NO funds — it only signs messages.
+
+### Step 4: Configure MCP
+
+Add to your MCP client config (e.g. Claude Desktop, Cursor, Hermes Agent):
 
 ```json
 {
@@ -32,14 +76,18 @@ uvx asterdex-mcp
       "command": "uvx",
       "args": ["asterdex-mcp"],
       "env": {
-        "ASTER_PRIVATE_KEY": "0x...",
-        "ASTER_WALLET": "0x...",
-        "ASTER_SIGNER": "0x..."
+        "ASTER_PRIVATE_KEY": "0xYOUR_AGENT_PRIVATE_KEY",
+        "ASTER_WALLET": "0xYOUR_MAIN_WALLET_ADDRESS",
+        "ASTER_SIGNER": "0xYOUR_AGENT_WALLET_ADDRESS"
       }
     }
   }
 }
 ```
+
+### Step 5: Verify
+
+Ask your AI agent to run `get_balance` — if it returns your USDT balance, you're good to go.
 
 ## Tools
 
@@ -47,14 +95,47 @@ uvx asterdex-mcp
 |---|---|
 | `get_balance` | Account balance and margin summary |
 | `get_positions` | Open positions with PnL |
-| `get_open_orders` | Pending orders |
-| `place_order` | Place market/limit/stop orders |
+| `get_open_orders` | Pending orders (optional symbol filter) |
+| `place_order` | Place market/limit/stop/TP/SL orders |
 | `cancel_order` | Cancel order by ID |
-| `cancel_all_orders` | Bulk cancel |
-| `get_klines` | OHLCV candle data |
-| `get_ticker` | 24h price/volume ticker |
-| `get_orderbook` | L2 orderbook depth |
-| `get_exchange_info` | Pairs, leverage limits, precision |
+| `cancel_all_orders` | Bulk cancel all open orders |
+| `set_leverage` | Set leverage per trading pair |
+| `get_exchange_info` | Pairs, precision, leverage limits |
+
+### Place Order Examples
+
+**Market buy:**
+```
+place_order(symbol="BTCUSDT", side="BUY", type="MARKET", quantity="0.01")
+```
+
+**Limit order:**
+```
+place_order(symbol="ETHUSDT", side="BUY", type="LIMIT", quantity="0.1", price="3000")
+```
+
+**Stop-loss (on existing position):**
+```
+place_order(symbol="BTCUSDT", side="SELL", type="STOP_MARKET", close_position=true, stop_price="60000")
+```
+
+**Take-profit (on existing position):**
+```
+place_order(symbol="BTCUSDT", side="SELL", type="TAKE_PROFIT_MARKET", close_position=true, stop_price="75000")
+```
+
+## How Auth Works
+
+Aster DEX uses **EIP-712 typed data signing** (same as Hyperliquid). Instead of API keys with HMAC:
+
+1. Your **agent wallet** signs each request with EIP-712
+2. Aster verifies the signature against the **signer address** you registered
+3. The **main wallet** is included in the signed data so Aster knows whose account to act on
+
+This means:
+- No API key/secret pairs to manage
+- Agent wallet can't steal funds (it has none)
+- You can revoke access anytime from Aster's API settings
 
 ## Tech Stack
 
