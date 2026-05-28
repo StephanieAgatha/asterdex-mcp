@@ -220,6 +220,70 @@ class AsterClient:
             "max_notional": result.get("maxNotionalValue"),
         }
 
+    # ── Market Data ───────────────────────────────────────────────────
+
+    def get_klines(
+        self,
+        symbol: str,
+        interval: str = "1h",
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """OHLCV candle data."""
+        raw = self.client.klines(symbol=symbol.upper(), interval=interval, limit=limit)
+        candles = []
+        for k in raw:
+            candles.append({
+                "open_time": k[0],
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5]),
+                "close_time": k[6],
+                "quote_volume": float(k[7]),
+                "trades": int(k[8]),
+            })
+        return candles
+
+    def get_ticker(self, symbol: str | None = None) -> Any:
+        """24h price/volume ticker."""
+        raw = self.client.ticker_24hr(symbol=symbol.upper() if symbol else None)
+        if isinstance(raw, list):
+            return [
+                {
+                    "symbol": t.get("symbol"),
+                    "price": float(t.get("lastPrice", 0)),
+                    "change_24h": float(t.get("priceChange", 0)),
+                    "change_pct": float(t.get("priceChangePercent", 0)),
+                    "high_24h": float(t.get("highPrice", 0)),
+                    "low_24h": float(t.get("lowPrice", 0)),
+                    "volume": float(t.get("volume", 0)),
+                    "quote_volume": float(t.get("quoteVolume", 0)),
+                }
+                for t in raw
+            ]
+        return {
+            "symbol": raw.get("symbol"),
+            "price": float(raw.get("lastPrice", 0)),
+            "change_24h": float(raw.get("priceChange", 0)),
+            "change_pct": float(raw.get("priceChangePercent", 0)),
+            "high_24h": float(raw.get("highPrice", 0)),
+            "low_24h": float(raw.get("lowPrice", 0)),
+            "volume": float(raw.get("volume", 0)),
+            "quote_volume": float(raw.get("quoteVolume", 0)),
+        }
+
+    def get_orderbook(self, symbol: str, limit: int = 20) -> dict[str, Any]:
+        """L2 orderbook depth."""
+        raw = self.client.depth(symbol=symbol.upper(), limit=limit)
+        return {
+            "symbol": symbol.upper(),
+            "bids": [[float(p), float(q)] for p, q in raw.get("bids", [])],
+            "asks": [[float(p), float(q)] for p, q in raw.get("asks", [])],
+            "bid_count": len(raw.get("bids", [])),
+            "ask_count": len(raw.get("asks", [])),
+        }
+
     def get_exchange_info(self, symbol: str | None = None) -> Any:
         """Get exchange info for a symbol or all pairs."""
         info = self.client.exchange_info()

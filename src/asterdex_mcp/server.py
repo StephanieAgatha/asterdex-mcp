@@ -119,6 +119,44 @@ def cancel_all_orders(symbol: str = "") -> str:
     return json.dumps(c.cancel_all_orders(symbol or None), indent=2, default=str)
 
 
+# ── Market data tools ─────────────────────────────────────────────────
+
+@mcp.tool()
+def get_klines(symbol: str, interval: str = "1h", limit: int = 100) -> str:
+    """Get OHLCV candle data for a trading pair.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        interval: Candle interval. Options: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w
+        limit: Number of candles (max 1500, default 100)
+    """
+    c = _get_client()
+    return json.dumps(c.get_klines(symbol, interval, limit), indent=2, default=str)
+
+
+@mcp.tool()
+def get_ticker(symbol: str = "") -> str:
+    """Get 24h price/volume ticker. Omit symbol for all trading pairs.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT). Omit for all tickers.
+    """
+    c = _get_client()
+    return json.dumps(c.get_ticker(symbol or None), indent=2, default=str)
+
+
+@mcp.tool()
+def get_orderbook(symbol: str, limit: int = 20) -> str:
+    """Get L2 orderbook depth (bids and asks).
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        limit: Depth levels (5, 10, 20, 50, 100, 500. default 20)
+    """
+    c = _get_client()
+    return json.dumps(c.get_orderbook(symbol, limit), indent=2, default=str)
+
+
 # ── Exchange tools ────────────────────────────────────────────────────
 
 @mcp.tool()
