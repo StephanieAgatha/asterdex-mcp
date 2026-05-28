@@ -102,27 +102,9 @@ Ask your AI agent to run `get_balance` — if it returns your USDT balance, you'
 | `set_leverage` | Set leverage per trading pair |
 | `get_exchange_info` | Pairs, precision, leverage limits |
 
-### Place Order Examples
+## Examples
 
-**Market buy:**
-```
-place_order(symbol="BTCUSDT", side="BUY", type="MARKET", quantity="0.01")
-```
-
-**Limit order:**
-```
-place_order(symbol="ETHUSDT", side="BUY", type="LIMIT", quantity="0.1", price="3000")
-```
-
-**Stop-loss (on existing position):**
-```
-place_order(symbol="BTCUSDT", side="SELL", type="STOP_MARKET", close_position=true, stop_price="60000")
-```
-
-**Take-profit (on existing position):**
-```
-place_order(symbol="BTCUSDT", side="SELL", type="TAKE_PROFIT_MARKET", close_position=true, stop_price="75000")
-```
+See [examples.md](examples.md) for natural language prompting examples — account, analysis, trading, and combined workflows.
 
 ## How Auth Works
 
