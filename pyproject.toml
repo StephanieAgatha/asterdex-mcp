@@ -11,6 +11,7 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0",
+    "numpy>=1.24",
     "kairos-aster-sdk @ file:///tmp/kairos-aster-sdk",
 ]
 

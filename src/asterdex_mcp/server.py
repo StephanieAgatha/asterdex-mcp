@@ -7,6 +7,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from .client import AsterClient
+from .ta import analyze_timeframe
 
 mcp = FastMCP("asterdex-mcp")
 client: AsterClient | None = None
@@ -117,6 +118,45 @@ def cancel_all_orders(symbol: str = "") -> str:
     """
     c = _get_client()
     return json.dumps(c.cancel_all_orders(symbol or None), indent=2, default=str)
+
+
+# ── TA tools ──────────────────────────────────────────────────────────
+
+@mcp.tool()
+def analyze_coin(
+    symbol: str,
+    intervals: str = "1h,4h,1d",
+    limit: int = 200,
+) -> str:
+    """Full technical analysis for a coin across multiple timeframes.
+
+    Returns RSI, MACD, Stochastic, EMA (9/20/50/200), Bollinger Bands,
+    Pivot Points, volume ratio, and a BUY/SELL/HOLD signal for each timeframe.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT, TONUSDT)
+        intervals: Comma-separated timeframes (e.g. "1h,4h,1d"). Options: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w
+        limit: Number of candles per timeframe (default 200, need 50+ for EMA50, 200+ for EMA200)
+    """
+    c = _get_client()
+    symbol = symbol.upper()
+    tf_list = [t.strip() for t in intervals.split(",")]
+
+    results = {}
+    for tf in tf_list:
+        klines = c.get_klines(symbol, tf, limit)
+        if not klines or len(klines) < 30:
+            results[tf] = {"error": "insufficient data"}
+            continue
+
+        closes = [k["close"] for k in klines]
+        highs = [k["high"] for k in klines]
+        lows = [k["low"] for k in klines]
+        volumes = [k["volume"] for k in klines]
+
+        results[tf] = analyze_timeframe(closes, highs, lows, volumes)
+
+    return json.dumps(results, indent=2, default=str)
 
 
 # ── Market data tools ─────────────────────────────────────────────────
