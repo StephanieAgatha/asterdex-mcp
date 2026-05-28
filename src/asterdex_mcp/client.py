@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-from kairos_aster import FuturesClient
+from .sdk import FuturesClient
 
 
 class AsterClient:

@@ -5,14 +5,18 @@ build-backend = "hatchling.build"
 [project]
 name = "asterdex-mcp"
 version = "0.1.0"
-description = "Model Context Protocol server for Aster DEX"
+description = "Model Context Protocol server for Aster DEX — trade, analyze, and manage positions on Aster DEX via MCP"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0",
     "numpy>=1.24",
-    "kairos-aster-sdk @ file:///tmp/kairos-aster-sdk",
+    "eth-account>=0.10.0",
+    "eth-abi>=5.0.0",
+    "eth-utils>=2.0.0",
+    "requests>=2.28.0",
+    "websockets>=12.0",
 ]
 
 [project.scripts]
@@ -20,6 +24,3 @@ asterdex-mcp = "asterdex_mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/asterdex_mcp"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
