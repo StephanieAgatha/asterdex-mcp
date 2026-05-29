@@ -27,6 +27,7 @@ class AsterClient:
 
     def get_balance(self) -> dict[str, Any]:
         """Account balance and margin summary."""
+        self._require_auth()
         bal = self.client.balance()
         result = {}
         for item in bal:
@@ -45,6 +46,7 @@ class AsterClient:
 
     def get_positions(self) -> list[dict[str, Any]]:
         """Open positions with PnL."""
+        self._require_auth()
         positions = self.client.positions()
         active = []
         for p in positions:
@@ -79,6 +81,7 @@ class AsterClient:
 
     def get_open_orders(self, symbol: str | None = None) -> list[dict[str, Any]]:
         """Pending orders, optionally filtered by symbol."""
+        self._require_auth()
         kwargs = {}
         if symbol:
             kwargs["symbol"] = symbol.upper()
@@ -124,6 +127,7 @@ class AsterClient:
         leverage: int | None = None,
     ) -> dict[str, Any]:
         """Place an order. Handles TP/SL with close_position."""
+        self._require_auth()
         symbol = symbol.upper()
         side = side.upper()
         order_type = type.upper()
@@ -179,6 +183,7 @@ class AsterClient:
 
     def cancel_order(self, symbol: str, order_id: int) -> dict[str, Any]:
         """Cancel a specific order."""
+        self._require_auth()
         result = self.client.cancel_order(symbol=symbol.upper(), orderId=order_id)
         return {
             "order_id": result.get("orderId"),
@@ -189,6 +194,7 @@ class AsterClient:
 
     def cancel_all_orders(self, symbol: str | None = None) -> dict[str, Any]:
         """Cancel all open orders."""
+        self._require_auth()
         orders = self.get_open_orders(symbol)
         cancelled = []
         errors = []
@@ -213,6 +219,7 @@ class AsterClient:
 
     def set_leverage(self, symbol: str, leverage: int) -> dict[str, Any]:
         """Set leverage for a pair."""
+        self._require_auth()
         result = self.client.set_leverage(symbol=symbol.upper(), leverage=leverage)
         return {
             "symbol": result.get("symbol", symbol.upper()),
@@ -222,12 +229,14 @@ class AsterClient:
 
     def get_account_info(self) -> dict[str, Any]:
         """Full account info with join margin."""
+        self._require_auth()
         return self.client.account_with_join_margin()
 
     def get_position_margin_history(
         self, symbol: str, limit: int = 50
     ) -> list[dict[str, Any]]:
         """History of margin changes for a position."""
+        self._require_auth()
         return self.client.position_margin_history(symbol.upper(), limit)
 
     def modify_order(
@@ -238,6 +247,7 @@ class AsterClient:
         quantity: str = "",
     ) -> dict[str, Any]:
         """Modify an existing LIMIT order."""
+        self._require_auth()
         result = self.client.modify_order(
             symbol=symbol.upper(),
             order_id=order_id,
@@ -262,6 +272,7 @@ class AsterClient:
         time_in_force: str = "GTC",
     ) -> dict[str, Any]:
         """Place a BBO-pegged chase order."""
+        self._require_auth()
         result = self.client.chase_order(
             symbol=symbol.upper(),
             side=side.upper(),
@@ -281,6 +292,7 @@ class AsterClient:
 
     def cancel_chase_order(self, symbol: str, order_id: int) -> dict[str, Any]:
         """Cancel a chase order (uses standard cancel)."""
+        self._require_auth()
         result = self.client.cancel_order(symbol=symbol.upper(), orderId=order_id)
         return {
             "order_id": result.get("orderId"),
@@ -291,32 +303,39 @@ class AsterClient:
 
     def noop(self) -> dict[str, Any]:
         """Cancel in-flight transactions."""
+        self._require_auth()
         return self.client.noop()
 
     def set_stp_mode(self, stp_mode: str) -> dict[str, Any]:
         """Set Self-Trade Prevention mode."""
+        self._require_auth()
         return self.client.set_stp_mode(stp_mode)
 
     def get_stp_mode(self) -> dict[str, Any]:
         """Get current STP mode."""
+        self._require_auth()
         return self.client.get_stp_mode()
 
     def set_mmp(
         self, window_ms: int, freeze_ms: int, qty_limit: float, delta_limit: float
     ) -> dict[str, Any]:
         """Configure Market Maker Protection."""
+        self._require_auth()
         return self.client.set_mmp(window_ms, freeze_ms, qty_limit, delta_limit)
 
     def get_mmp(self) -> dict[str, Any]:
         """Get MMP config."""
+        self._require_auth()
         return self.client.get_mmp()
 
     def delete_mmp(self) -> dict[str, Any]:
         """Delete MMP config."""
+        self._require_auth()
         return self.client.delete_mmp()
 
     def reset_mmp(self) -> dict[str, Any]:
         """Reset MMP (unfreeze)."""
+        self._require_auth()
         return self.client.reset_mmp()
 
     # ── Market Data ───────────────────────────────────────────────────
