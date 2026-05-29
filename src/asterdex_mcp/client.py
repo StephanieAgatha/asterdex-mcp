@@ -220,6 +220,105 @@ class AsterClient:
             "max_notional": result.get("maxNotionalValue"),
         }
 
+    def get_account_info(self) -> dict[str, Any]:
+        """Full account info with join margin."""
+        return self.client.account_with_join_margin()
+
+    def get_position_margin_history(
+        self, symbol: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """History of margin changes for a position."""
+        return self.client.position_margin_history(symbol.upper(), limit)
+
+    def modify_order(
+        self,
+        symbol: str,
+        order_id: int,
+        price: str = "",
+        quantity: str = "",
+    ) -> dict[str, Any]:
+        """Modify an existing LIMIT order."""
+        result = self.client.modify_order(
+            symbol=symbol.upper(),
+            order_id=order_id,
+            quantity=quantity or None,
+            price=price or None,
+        )
+        return {
+            "order_id": result.get("orderId"),
+            "symbol": result.get("symbol"),
+            "status": result.get("status"),
+            "price": result.get("price"),
+            "quantity": result.get("origQty"),
+            "message": "Order modified",
+        }
+
+    def place_chase_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: str,
+        quantity_unit: str = "BASE",
+        time_in_force: str = "GTC",
+    ) -> dict[str, Any]:
+        """Place a BBO-pegged chase order."""
+        result = self.client.chase_order(
+            symbol=symbol.upper(),
+            side=side.upper(),
+            quantity=quantity,
+            quantity_unit=quantity_unit,
+            time_in_force=time_in_force,
+        )
+        return {
+            "strategy_id": result.get("strategyId"),
+            "symbol": result.get("symbol"),
+            "side": result.get("side"),
+            "quantity": result.get("quantity"),
+            "status": result.get("strategyStatus"),
+            "chase_offset": result.get("chaseOffset"),
+            "price_limit": result.get("priceLimit"),
+        }
+
+    def cancel_chase_order(self, symbol: str, order_id: int) -> dict[str, Any]:
+        """Cancel a chase order (uses standard cancel)."""
+        result = self.client.cancel_order(symbol=symbol.upper(), orderId=order_id)
+        return {
+            "order_id": result.get("orderId"),
+            "symbol": result.get("symbol"),
+            "status": result.get("status"),
+            "message": "Chase order cancelled",
+        }
+
+    def noop(self) -> dict[str, Any]:
+        """Cancel in-flight transactions."""
+        return self.client.noop()
+
+    def set_stp_mode(self, stp_mode: str) -> dict[str, Any]:
+        """Set Self-Trade Prevention mode."""
+        return self.client.set_stp_mode(stp_mode)
+
+    def get_stp_mode(self) -> dict[str, Any]:
+        """Get current STP mode."""
+        return self.client.get_stp_mode()
+
+    def set_mmp(
+        self, window_ms: int, freeze_ms: int, qty_limit: float, delta_limit: float
+    ) -> dict[str, Any]:
+        """Configure Market Maker Protection."""
+        return self.client.set_mmp(window_ms, freeze_ms, qty_limit, delta_limit)
+
+    def get_mmp(self) -> dict[str, Any]:
+        """Get MMP config."""
+        return self.client.get_mmp()
+
+    def delete_mmp(self) -> dict[str, Any]:
+        """Delete MMP config."""
+        return self.client.delete_mmp()
+
+    def reset_mmp(self) -> dict[str, Any]:
+        """Reset MMP (unfreeze)."""
+        return self.client.reset_mmp()
+
     # ── Market Data ───────────────────────────────────────────────────
 
     def get_klines(
@@ -283,6 +382,61 @@ class AsterClient:
             "bid_count": len(raw.get("bids", [])),
             "ask_count": len(raw.get("asks", [])),
         }
+
+    def get_historical_trades(
+        self, symbol: str, limit: int = 50, from_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Old trades lookup."""
+        raw = self.client.historical_trades(symbol.upper(), limit, from_id)
+        return [
+            {
+                "id": t.get("id"),
+                "price": float(t.get("price", 0)),
+                "qty": float(t.get("qty", 0)),
+                "time": t.get("time"),
+                "is_buyer_maker": t.get("isBuyerMaker"),
+            }
+            for t in raw
+        ]
+
+    def get_index_klines(
+        self, pair: str, interval: str = "1h", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Index price kline data."""
+        raw = self.client.index_price_klines(pair.upper(), interval, limit)
+        return self._parse_klines(raw)
+
+    def get_mark_klines(
+        self, symbol: str, interval: str = "1h", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Mark price kline data."""
+        raw = self.client.mark_price_klines(symbol.upper(), interval, limit)
+        return self._parse_klines(raw)
+
+    def get_funding_info(self, symbol: str = "") -> Any:
+        """Funding rate config (interval, cap, floor)."""
+        return self.client.funding_info(symbol.upper() if symbol else None)
+
+    def get_index_references(self, symbol: str) -> dict[str, Any]:
+        """Index price component exchanges and weights."""
+        return self.client.index_references(symbol.upper())
+
+    @staticmethod
+    def _parse_klines(raw: list) -> list[dict[str, Any]]:
+        candles = []
+        for k in raw:
+            candles.append({
+                "open_time": k[0],
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5]),
+                "close_time": k[6],
+                "quote_volume": float(k[7]),
+                "trades": int(k[8]),
+            })
+        return candles
 
     def get_exchange_info(self, symbol: str | None = None) -> Any:
         """Get exchange info for a symbol or all pairs."""

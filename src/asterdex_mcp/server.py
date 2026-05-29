@@ -197,6 +197,72 @@ def get_orderbook(symbol: str, limit: int = 20) -> str:
     return json.dumps(c.get_orderbook(symbol, limit), indent=2, default=str)
 
 
+@mcp.tool()
+def get_historical_trades(symbol: str, limit: int = 50, from_id: int = 0) -> str:
+    """Get old/historical trades for a symbol.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        limit: Max trades to return (default 50, max 1000)
+        from_id: Trade ID to start from (default: most recent)
+    """
+    c = _get_client()
+    return json.dumps(
+        c.get_historical_trades(symbol, limit, from_id or None),
+        indent=2, default=str,
+    )
+
+
+@mcp.tool()
+def get_index_klines(pair: str, interval: str = "1h", limit: int = 100) -> str:
+    """Get index price kline/candlestick data.
+
+    Args:
+        pair: Trading pair (e.g. BTCUSDT)
+        interval: Candle interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w)
+        limit: Number of candles (default 100, max 1500)
+    """
+    c = _get_client()
+    return json.dumps(c.get_index_klines(pair, interval, limit), indent=2, default=str)
+
+
+@mcp.tool()
+def get_mark_klines(symbol: str, interval: str = "1h", limit: int = 100) -> str:
+    """Get mark price kline/candlestick data.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        interval: Candle interval (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w)
+        limit: Number of candles (default 100, max 1500)
+    """
+    c = _get_client()
+    return json.dumps(c.get_mark_klines(symbol, interval, limit), indent=2, default=str)
+
+
+@mcp.tool()
+def get_funding_info(symbol: str = "") -> str:
+    """Get funding rate configuration (interval hours, cap, floor).
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT). Omit for all pairs.
+    """
+    c = _get_client()
+    return json.dumps(c.get_funding_info(symbol), indent=2, default=str)
+
+
+@mcp.tool()
+def get_index_references(symbol: str) -> str:
+    """Get index price component exchanges and their weights.
+
+    Shows which exchanges (Binance, OKX, Coinbase, etc.) contribute to the index price.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+    """
+    c = _get_client()
+    return json.dumps(c.get_index_references(symbol), indent=2, default=str)
+
+
 # ── Exchange tools ────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -209,6 +275,136 @@ def set_leverage(symbol: str, leverage: int) -> str:
     """
     c = _get_client()
     return json.dumps(c.set_leverage(symbol, leverage), indent=2, default=str)
+
+
+@mcp.tool()
+def get_account_info() -> str:
+    """Get full account information with join margin, all assets, and all positions."""
+    c = _get_client()
+    return json.dumps(c.get_account_info(), indent=2, default=str)
+
+
+@mcp.tool()
+def get_position_margin_history(symbol: str, limit: int = 50) -> str:
+    """Get history of margin changes (add/reduce) for a position.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        limit: Max records to return (default 50)
+    """
+    c = _get_client()
+    return json.dumps(c.get_position_margin_history(symbol, limit), indent=2, default=str)
+
+
+@mcp.tool()
+def modify_order(
+    symbol: str,
+    order_id: int,
+    price: str = "",
+    quantity: str = "",
+) -> str:
+    """Modify an existing LIMIT order without cancel+reorder.
+
+    Only works for LIMIT orders. Both price and quantity must be sent together.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        order_id: Order ID to modify
+        price: New price (optional)
+        quantity: New quantity (optional)
+    """
+    c = _get_client()
+    return json.dumps(c.modify_order(symbol, order_id, price, quantity), indent=2, default=str)
+
+
+@mcp.tool()
+def place_chase_order(
+    symbol: str,
+    side: str,
+    quantity: str,
+    quantity_unit: str = "BASE",
+    time_in_force: str = "GTC",
+) -> str:
+    """Place a BBO-pegged chase order that auto-tracks the best bid/ask.
+
+    The order automatically re-pegs to best price each tick until filled
+    or market moves beyond max offset.
+
+    Args:
+        symbol: Trading pair (e.g. BTCUSDT)
+        side: BUY or SELL
+        quantity: Order quantity
+        quantity_unit: BASE or QUOTE (default BASE)
+        time_in_force: GTC, IOC, FOK (default GTC, NO_FILL not allowed)
+    """
+    c = _get_client()
+    return json.dumps(c.place_chase_order(symbol, side, quantity, quantity_unit, time_in_force), indent=2, default=str)
+
+
+@mcp.tool()
+def noop() -> str:
+    """Cancel in-flight transactions using the same nonce. No guarantee of success."""
+    c = _get_client()
+    return json.dumps(c.noop(), indent=2, default=str)
+
+
+# ── STP Mode ─────────────────────────────────────────────────────────
+
+@mcp.tool()
+def set_stp_mode(stp_mode: str) -> str:
+    """Set Self-Trade Prevention mode on every symbol.
+
+    Args:
+        stp_mode: EXPIRE_TAKER, EXPIRE_MAKER, or EXPIRE_BOTH
+    """
+    c = _get_client()
+    return json.dumps(c.set_stp_mode(stp_mode), indent=2, default=str)
+
+
+@mcp.tool()
+def get_stp_mode() -> str:
+    """Get current Self-Trade Prevention mode."""
+    c = _get_client()
+    return json.dumps(c.get_stp_mode(), indent=2, default=str)
+
+
+# ── Market Maker Protection ──────────────────────────────────────────
+
+@mcp.tool()
+def set_mmp(window_ms: int, freeze_ms: int, qty_limit: float, delta_limit: float) -> str:
+    """Configure Market Maker Protection.
+
+    Auto-freezes trading when fill limits are exceeded within a time window.
+
+    Args:
+        window_ms: Time window in milliseconds
+        freeze_ms: Freeze duration in milliseconds after trigger
+        qty_limit: Maximum quantity limit within window
+        delta_limit: Maximum delta limit within window
+    """
+    c = _get_client()
+    return json.dumps(c.set_mmp(window_ms, freeze_ms, qty_limit, delta_limit), indent=2, default=str)
+
+
+@mcp.tool()
+def get_mmp() -> str:
+    """Get current Market Maker Protection configuration."""
+    c = _get_client()
+    return json.dumps(c.get_mmp(), indent=2, default=str)
+
+
+@mcp.tool()
+def delete_mmp() -> str:
+    """Delete Market Maker Protection configuration."""
+    c = _get_client()
+    return json.dumps(c.delete_mmp(), indent=2, default=str)
+
+
+@mcp.tool()
+def reset_mmp() -> str:
+    """Reset/unfreeze Market Maker Protection."""
+    c = _get_client()
+    return json.dumps(c.reset_mmp(), indent=2, default=str)
 
 
 @mcp.tool()

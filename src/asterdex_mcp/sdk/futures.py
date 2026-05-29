@@ -103,9 +103,44 @@ class FuturesClient(BaseClient):
             "/fapi/v3/aggTrades", {"symbol": symbol, "limit": limit, **kw}
         )
 
+    def historical_trades(
+        self, symbol: str, limit: int = 500, from_id: int | None = None
+    ) -> list:
+        params: dict[str, Any] = {"symbol": symbol, "limit": limit}
+        if from_id is not None:
+            params["fromId"] = from_id
+        return self.get_public("/fapi/v3/historicalTrades", params)
+
+    def index_price_klines(
+        self, pair: str, interval: str, limit: int = 500, **kw: Any
+    ) -> list:
+        params: dict[str, Any] = {
+            "pair": pair, "interval": interval, "limit": limit, **kw
+        }
+        return self.get_public("/fapi/v3/indexPriceKlines", params)
+
+    def mark_price_klines(
+        self, symbol: str, interval: str, limit: int = 500, **kw: Any
+    ) -> list:
+        params: dict[str, Any] = {
+            "symbol": symbol, "interval": interval, "limit": limit, **kw
+        }
+        return self.get_public("/fapi/v3/markPriceKlines", params)
+
+    def funding_info(self, symbol: str | None = None) -> Any:
+        params = {"symbol": symbol} if symbol else {}
+        return self.get_public("/fapi/v3/fundingInfo", params)
+
+    def index_references(self, symbol: str) -> dict:
+        return self.get_public("/fapi/v3/indexreferences", {"symbol": symbol})
+
     # ═══════════════════════════════════════════════════════════════════
     #  SIGNED — Orders
     # ═══════════════════════════════════════════════════════════════════
+
+    def noop(self) -> dict:
+        """Cancel in-flight transactions using the same nonce. No guarantee of success."""
+        return self.post_signed("/fapi/v3/noop", {})
 
     def place_order(
         self,
@@ -189,6 +224,66 @@ class FuturesClient(BaseClient):
             params["orderIdList"] = json.dumps(order_ids)
         return self.delete_signed("/fapi/v3/batchOrders", params)
 
+    def modify_order(
+        self,
+        symbol: str,
+        *,
+        order_id: int | None = None,
+        orig_client_order_id: str | None = None,
+        quantity: float | str | None = None,
+        price: float | str | None = None,
+    ) -> dict:
+        """Modify an existing LIMIT order (PUT /fapi/v3/order)."""
+        params: dict[str, Any] = {"symbol": symbol}
+        if order_id is not None:
+            params["orderId"] = order_id
+        if orig_client_order_id:
+            params["origClientOrderId"] = orig_client_order_id
+        if quantity is not None:
+            params["quantity"] = str(quantity)
+        if price is not None:
+            params["price"] = str(price)
+        return self.put_signed("/fapi/v3/order", params)
+
+    def chase_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float | str,
+        *,
+        quantity_unit: str = "BASE",
+        reduce_only: bool | None = None,
+        chase_offset: float | str | None = None,
+        chase_offset_type: str | None = None,
+        max_chase_offset: float | str | None = None,
+        max_chase_offset_type: str | None = None,
+        price_limit: float | str | None = None,
+        time_in_force: str | None = None,
+        client_strategy_id: str | None = None,
+    ) -> dict:
+        """Place a BBO-pegged chase order (POST /fapi/v3/chase)."""
+        params: dict[str, Any] = {
+            "symbol": symbol, "side": side,
+            "quantity": str(quantity), "quantityUnit": quantity_unit,
+        }
+        if reduce_only is not None:
+            params["reduceOnly"] = str(reduce_only).lower()
+        if chase_offset is not None:
+            params["chaseOffset"] = str(chase_offset)
+        if chase_offset_type:
+            params["chaseOffsetType"] = chase_offset_type
+        if max_chase_offset is not None:
+            params["maxChaseOffset"] = str(max_chase_offset)
+        if max_chase_offset_type:
+            params["maxChaseOffsetType"] = max_chase_offset_type
+        if price_limit is not None:
+            params["priceLimit"] = str(price_limit)
+        if time_in_force:
+            params["timeInForce"] = time_in_force
+        if client_strategy_id:
+            params["clientStrategyId"] = client_strategy_id
+        return self.post_signed("/fapi/v3/chase", params, FUTURES_STRICT_KEYS)
+
     def auto_cancel(self, symbol: str, countdown_time: int) -> dict:
         """Set auto-cancel countdown (ms). 0 = disable."""
         return self.post_signed(
@@ -263,6 +358,16 @@ class FuturesClient(BaseClient):
         params = {"symbol": symbol} if symbol else {}
         return self.get_signed("/fapi/v3/leverageBracket", params)
 
+    def account_with_join_margin(self) -> dict:
+        """Full account info with join margin data."""
+        return self.get_signed("/fapi/v3/accountWithJoinMargin")
+
+    def position_margin_history(
+        self, symbol: str, limit: int = 500, **kw: Any
+    ) -> list:
+        params: dict[str, Any] = {"symbol": symbol, "limit": limit, **kw}
+        return self.get_signed("/fapi/v3/positionMargin/history", params)
+
     # ═══════════════════════════════════════════════════════════════════
     #  SIGNED — Position Mode
     # ═══════════════════════════════════════════════════════════════════
@@ -284,6 +389,45 @@ class FuturesClient(BaseClient):
 
     def get_multi_assets_mode(self) -> dict:
         return self.get_signed("/fapi/v3/multiAssetsMargin")
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  SIGNED — STP Mode
+    # ═══════════════════════════════════════════════════════════════════
+
+    def set_stp_mode(self, stp_mode: str) -> dict:
+        """Set Self-Trade Prevention mode. stp_mode: EXPIRE_TAKER, EXPIRE_MAKER, EXPIRE_BOTH."""
+        return self.post_signed("/fapi/v3/stpMode", {"stpMode": stp_mode})
+
+    def get_stp_mode(self) -> dict:
+        return self.get_signed("/fapi/v3/stpMode")
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  SIGNED — Market Maker Protection (MMP)
+    # ═══════════════════════════════════════════════════════════════════
+
+    def set_mmp(
+        self,
+        window_ms: int,
+        freeze_time_ms: int,
+        qty_limit: float,
+        delta_limit: float,
+    ) -> dict:
+        """Configure Market Maker Protection."""
+        return self.post_signed("/fapi/v3/mmp", {
+            "windowTime": window_ms,
+            "freezeTime": freeze_time_ms,
+            "qtyLimit": str(qty_limit),
+            "deltaLimit": str(delta_limit),
+        })
+
+    def get_mmp(self) -> dict:
+        return self.get_signed("/fapi/v3/mmp")
+
+    def delete_mmp(self) -> dict:
+        return self.delete_signed("/fapi/v3/mmp", {})
+
+    def reset_mmp(self) -> dict:
+        return self.post_signed("/fapi/v3/mmpReset", {})
 
     # ═══════════════════════════════════════════════════════════════════
     #  SIGNED — Transfers

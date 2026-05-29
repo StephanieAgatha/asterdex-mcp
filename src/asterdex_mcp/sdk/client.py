@@ -100,6 +100,20 @@ class BaseClient:
         url = f"{self.base_url}{path}"
         return self._do("DELETE", url, params=signed)
 
+    def put_signed(
+        self,
+        path: str,
+        params: dict | None = None,
+        strict_keys: list[str] | None = None,
+    ) -> Any:
+        """Signed PUT — auth params in request body."""
+        params = params or {}
+        signed = inject_auth(
+            params, self.user, self.signer, self._private_key, strict_keys
+        )
+        url = f"{self.base_url}{path}"
+        return self._do("PUT", url, data=signed)
+
     # ── Internal ──────────────────────────────────────────────────────
 
     def _do(self, method: str, url: str, **kwargs: Any) -> Any:
