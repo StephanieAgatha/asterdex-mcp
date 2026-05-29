@@ -214,6 +214,49 @@ def get_historical_trades(symbol: str, limit: int = 50, from_id: int = 0) -> str
 
 
 @mcp.tool()
+def get_user_trades(
+    symbol: str,
+    limit: int = 50,
+    start_time: int = 0,
+    end_time: int = 0,
+) -> str:
+    """Get your own trade fills (my trades) for a symbol.
+
+    Returns your actual filled orders with price, qty, commission, and realized PnL.
+    Use this to review what you bought/sold, calculate P&L, or audit past trades.
+
+    Args:
+        symbol: Trading pair (e.g. GENIUSUSDT, TONUSDT)
+        limit: Max trades to return (default 50, max 1000)
+        start_time: Start time in epoch ms (optional, default: most recent)
+        end_time: End time in epoch ms (optional)
+    """
+    c = _get_client()
+    trades = c.get_user_trades(symbol, limit, start_time or None, end_time or None)
+    if not trades:
+        return f"No trade history found for {symbol}."
+    from datetime import datetime, timezone
+    lines = [f"Trade History — {symbol} ({len(trades)} fills)\n"]
+    total_pnl = 0.0
+    total_fees = 0.0
+    for t in trades:
+        ts = int(t.get("time", 0))
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M UTC") if ts else "?"
+        side = "BUY" if t.get("isBuyer") or t.get("is_buyer") else "SELL"
+        price = float(t.get("price", 0))
+        qty = float(t.get("qty", 0))
+        pnl = float(t.get("realizedPnl", t.get("realized_pnl", 0)))
+        fee = float(t.get("commission", 0))
+        total_pnl += pnl
+        total_fees += fee
+        pnl_str = f"${pnl:+.4f}" if pnl != 0 else "—"
+        lines.append(f"  {dt}  {side:<4}  {qty} @ ${price:.6g}  PnL: {pnl_str}")
+    lines.append(f"\nTotal realized PnL: ${total_pnl:+.4f}")
+    lines.append(f"Total fees: ${total_fees:.6f}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
 def get_index_klines(pair: str, interval: str = "1h", limit: int = 100) -> str:
     """Get index price kline/candlestick data.
 

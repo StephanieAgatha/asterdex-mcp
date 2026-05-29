@@ -23,6 +23,11 @@ class AsterClient:
             private_key=pk,
         )
 
+    def _require_auth(self):
+        """Ensure auth credentials are available."""
+        if not self.user or not self.signer:
+            raise RuntimeError("ASTER_WALLET and ASTER_SIGNER must be set for signed endpoints.")
+
     # ── Account ───────────────────────────────────────────────────────
 
     def get_balance(self) -> dict[str, Any]:
@@ -417,6 +422,39 @@ class AsterClient:
             }
             for t in raw
         ]
+
+    def get_user_trades(
+        self,
+        symbol: str,
+        limit: int = 50,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """User's own trade fills (my trades)."""
+        self._require_auth()
+        kw: dict[str, Any] = {"symbol": symbol.upper(), "limit": limit}
+        if start_time:
+            kw["startTime"] = start_time
+        if end_time:
+            kw["endTime"] = end_time
+        raw = self.client.trades_history(**kw)
+        result = []
+        for t in raw:
+            result.append({
+                "symbol": t.get("symbol", symbol.upper()),
+                "id": t.get("id"),
+                "order_id": t.get("orderId"),
+                "price": float(t.get("price", 0)),
+                "qty": float(t.get("qty", 0)),
+                "quote_qty": float(t.get("quoteQty", 0)),
+                "commission": float(t.get("commission", 0)),
+                "commission_asset": t.get("commissionAsset", ""),
+                "time": t.get("time"),
+                "is_buyer": t.get("isBuyer", False),
+                "is_maker": t.get("isMaker", False),
+                "realized_pnl": float(t.get("realizedPnl", 0)),
+            })
+        return result
 
     def get_index_klines(
         self, pair: str, interval: str = "1h", limit: int = 100
