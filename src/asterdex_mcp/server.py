@@ -232,26 +232,66 @@ def get_user_trades(
         end_time: End time in epoch ms (optional)
     """
     c = _get_client()
-    trades = c.get_user_trades(symbol, limit, start_time or None, end_time or None)
-    if not trades:
+    all_trades = c.get_user_trades(symbol, limit, start_time or None, end_time or None)
+    if not all_trades:
         return f"No trade history found for {symbol}."
     from datetime import datetime, timezone
-    lines = [f"Trade History — {symbol} ({len(trades)} fills)\n"]
+    # Sort oldest first
+    all_trades.sort(key=lambda t: int(t.get("time", 0)))
+    # Separate entry fills (PnL=0) and exit fills (PnL!=0)
+    entries = []
+    exits = []
+    for t in all_trades:
+        pnl = float(t.get("realizedPnl", t.get("realized_pnl", 0)))
+        if pnl == 0.0:
+            entries.append(t)
+        else:
+            exits.append(t)
+    if not exits:
+        return f"No closed trades for {symbol} — only {len(entries)} open position fill(s)."
+    # Match each exit to its preceding entry
+    closed = []
+    used_entries = set()
+    for ex in exits:
+        ex_ts = int(ex.get("time", 0))
+        best = None
+        for i, en in enumerate(entries):
+            if i in used_entries:
+                continue
+            en_ts = int(en.get("time", 0))
+            if en_ts < ex_ts:
+                if best is None or en_ts > int(entries[best].get("time", 0)):
+                    best = i
+        if best is not None:
+            used_entries.add(best)
+            closed.append((entries[best], ex))
+        else:
+            closed.append((None, ex))
     total_pnl = 0.0
     total_fees = 0.0
-    for t in trades:
-        ts = int(t.get("time", 0))
-        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M UTC") if ts else "?"
-        side = "BUY" if t.get("isBuyer") or t.get("is_buyer") else "SELL"
-        price = float(t.get("price", 0))
-        qty = float(t.get("qty", 0))
-        pnl = float(t.get("realizedPnl", t.get("realized_pnl", 0)))
-        fee = float(t.get("commission", 0))
+    lines = [f"Closed Trades — {symbol} ({len(closed)} trades)\n"]
+    for entry, exit in closed:
+        ex_ts = int(exit.get("time", 0))
+        ex_dt = datetime.fromtimestamp(ex_ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M") if ex_ts else "?"
+        ex_price = float(exit.get("price", 0))
+        ex_qty = float(exit.get("qty", 0))
+        pnl = float(exit.get("realizedPnl", exit.get("realized_pnl", 0)))
+        fee = float(exit.get("commission", 0))
         total_pnl += pnl
         total_fees += fee
-        pnl_str = f"${pnl:+.4f}" if pnl != 0 else "—"
-        lines.append(f"  {dt}  {side:<4}  {qty} @ ${price:.6g}  PnL: {pnl_str}")
-    lines.append(f"\nTotal realized PnL: ${total_pnl:+.4f}")
+        if entry:
+            en_ts = int(entry.get("time", 0))
+            en_dt = datetime.fromtimestamp(en_ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M") if en_ts else "?"
+            en_price = float(entry.get("price", 0))
+            pct = ((ex_price - en_price) / en_price * 100) if en_price else 0
+            direction = "LONG" if float(entry.get("qty", 0)) > 0 else "SHORT"
+            # For shorts, profit = entry > exit
+            if direction == "SHORT":
+                pct = -pct
+            lines.append(f"  {en_dt} → {ex_dt}  {direction}  {ex_qty} @ ${en_price:.6g} → ${ex_price:.6g}  ({pct:+.1f}%)  PnL: ${pnl:+.4f}")
+        else:
+            lines.append(f"  ? → {ex_dt}  {ex_qty} @ ${ex_price:.6g}  PnL: ${pnl:+.4f}")
+    lines.append(f"\nTotal PnL: ${total_pnl:+.4f}")
     lines.append(f"Total fees: ${total_fees:.6f}")
     return "\n".join(lines)
 
