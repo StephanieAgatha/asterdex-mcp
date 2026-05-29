@@ -213,86 +213,107 @@ def get_historical_trades(symbol: str, limit: int = 50, from_id: int = 0) -> str
     )
 
 
-@mcp.tool()
-def get_user_trades(
-    symbol: str,
-    limit: int = 50,
-    start_time: int = 0,
-    end_time: int = 0,
-) -> str:
-    """Get your own trade fills (my trades) for a symbol.
-
-    Returns your actual filled orders with price, qty, commission, and realized PnL.
-    Use this to review what you bought/sold, calculate P&L, or audit past trades.
-
-    Args:
-        symbol: Trading pair (e.g. GENIUSUSDT, TONUSDT)
-        limit: Max trades to return (default 50, max 1000)
-        start_time: Start time in epoch ms (optional, default: most recent)
-        end_time: End time in epoch ms (optional)
-    """
-    c = _get_client()
-    all_trades = c.get_user_trades(symbol, limit, start_time or None, end_time or None)
-    if not all_trades:
-        return f"No trade history found for {symbol}."
+def _match_trades(all_trades):
+    """Separate fills into entry/exit and match closed trades."""
     from datetime import datetime, timezone
-    # Sort oldest first
     all_trades.sort(key=lambda t: int(t.get("time", 0)))
-    # Separate entry fills (PnL=0) and exit fills (PnL!=0)
-    entries = []
-    exits = []
+    entries, exits = [], []
     for t in all_trades:
         pnl = float(t.get("realizedPnl", t.get("realized_pnl", 0)))
-        if pnl == 0.0:
-            entries.append(t)
-        else:
-            exits.append(t)
-    if not exits:
-        return f"No closed trades for {symbol} — only {len(entries)} open position fill(s)."
-    # Match each exit to its preceding entry
+        (exits if pnl != 0.0 else entries).append(t)
     closed = []
-    used_entries = set()
+    used = set()
     for ex in exits:
         ex_ts = int(ex.get("time", 0))
         best = None
         for i, en in enumerate(entries):
-            if i in used_entries:
+            if i in used:
                 continue
             en_ts = int(en.get("time", 0))
-            if en_ts < ex_ts:
-                if best is None or en_ts > int(entries[best].get("time", 0)):
-                    best = i
+            if en_ts < ex_ts and (best is None or en_ts > int(entries[best].get("time", 0))):
+                best = i
         if best is not None:
-            used_entries.add(best)
+            used.add(best)
             closed.append((entries[best], ex))
         else:
             closed.append((None, ex))
+    return closed, len(entries)
+
+
+@mcp.tool()
+def get_user_trades(
+    symbol: str = "",
+    limit: int = 50,
+    start_time: int = 0,
+    end_time: int = 0,
+) -> str:
+    """Get closed trades. Pass symbol for one pair, or omit symbol for ALL closed trades across every pair.
+
+    Args:
+        symbol: Trading pair (e.g. GENIUSUSDT). Omit to fetch ALL symbols.
+        limit: Max trades per symbol (default 50, max 1000)
+        start_time: Start time in epoch ms (optional)
+        end_time: End time in epoch ms (optional)
+    """
+    from datetime import datetime, timezone
+    c = _get_client()
+    if symbol:
+        symbols = [symbol]
+    else:
+        info = c.get_exchange_info()
+        symbols = [s["symbol"] for s in (info if isinstance(info, list) else info.get("symbols", []))]
+
+    all_closed = []
     total_pnl = 0.0
     total_fees = 0.0
-    lines = [f"Closed Trades — {symbol} ({len(closed)} trades)\n"]
-    for entry, exit in closed:
+    open_count = 0
+
+    for sym in symbols:
+        try:
+            trades = c.get_user_trades(sym, limit, start_time or None, end_time or None)
+        except Exception:
+            continue
+        if not trades:
+            continue
+        closed, n_open = _match_trades(trades)
+        open_count += n_open
+        for entry, exit in closed:
+            pnl = float(exit.get("realizedPnl", exit.get("realized_pnl", 0)))
+            fee = float(exit.get("commission", 0))
+            total_pnl += pnl
+            total_fees += fee
+            all_closed.append((sym, entry, exit))
+
+    if not all_closed:
+        if open_count > 0:
+            return f"No closed trades — only {open_count} open position fill(s)."
+        return "No trade history found."
+
+    # Sort by exit time
+    all_closed.sort(key=lambda x: int(x[2].get("time", 0)))
+
+    lines = [f"Closed Trades — {len(all_closed)} trades\n"]
+    for sym, entry, exit in all_closed:
         ex_ts = int(exit.get("time", 0))
         ex_dt = datetime.fromtimestamp(ex_ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M") if ex_ts else "?"
         ex_price = float(exit.get("price", 0))
         ex_qty = float(exit.get("qty", 0))
         pnl = float(exit.get("realizedPnl", exit.get("realized_pnl", 0)))
-        fee = float(exit.get("commission", 0))
-        total_pnl += pnl
-        total_fees += fee
         if entry:
             en_ts = int(entry.get("time", 0))
             en_dt = datetime.fromtimestamp(en_ts / 1000, tz=timezone.utc).strftime("%m/%d %H:%M") if en_ts else "?"
             en_price = float(entry.get("price", 0))
             pct = ((ex_price - en_price) / en_price * 100) if en_price else 0
             direction = "LONG" if float(entry.get("qty", 0)) > 0 else "SHORT"
-            # For shorts, profit = entry > exit
             if direction == "SHORT":
                 pct = -pct
-            lines.append(f"  {en_dt} → {ex_dt}  {direction}  {ex_qty} @ ${en_price:.6g} → ${ex_price:.6g}  ({pct:+.1f}%)  PnL: ${pnl:+.4f}")
+            lines.append(f"  {sym}  {en_dt} → {ex_dt}  {direction}  {ex_qty} @ ${en_price:.6g} → ${ex_price:.6g}  ({pct:+.1f}%)  PnL: ${pnl:+.4f}")
         else:
-            lines.append(f"  ? → {ex_dt}  {ex_qty} @ ${ex_price:.6g}  PnL: ${pnl:+.4f}")
+            lines.append(f"  {sym}  ? → {ex_dt}  {ex_qty} @ ${ex_price:.6g}  PnL: ${pnl:+.4f}")
     lines.append(f"\nTotal PnL: ${total_pnl:+.4f}")
     lines.append(f"Total fees: ${total_fees:.6f}")
+    if open_count:
+        lines.append(f"({open_count} open position fills excluded)")
     return "\n".join(lines)
 
 
